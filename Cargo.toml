@@ -1,0 +1,13 @@
+[package]
+name = "passgone"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.75"
+argon2 = { version = "0.5.2", features = ["zeroize"] }
+clap = { version = "4.4.6", features = ["derive"] }
+false = "0.0.0"
+rpassword = "7.2.0"
+thiserror = "1.0.49"
+zeroize = "1.6.0"
