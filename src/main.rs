@@ -42,22 +42,26 @@ struct Arguments {
     /// Data to salt the password with
     ///
     /// The value should be unique per generated
-    /// password. Typically, website host names
-    /// should be chosen as a salt
+    /// password
+    ///
+    /// Typically, website hostnames should be chosen as a salt
     #[arg(short, long)]
     salt: String,
     /// Monotonically increasing counter
     ///
-    /// This can be used to reset passwords
-    #[arg(long, default_value_t = 0)]
-    counter: u32,
-    /// Length in bytes of the kdf generated password
-    #[arg(long, default_value_t = 16)]
+    /// This value should be kept safe
+    ///
+    /// It can be used to reset passwords, by incrementing its value
+    #[arg(long, default_value_t = Box::new(0))]
+    counter: Box<u32>,
+    /// Length in bytes of the kdf output
+    #[arg(long, default_value_t = 32)]
     hash_length: usize,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Arguments::parse();
+    let mut counter = args.counter;
 
     let params = argon2::Params::new(
         argon2::Params::DEFAULT_M_COST,
@@ -71,7 +75,14 @@ fn main() -> anyhow::Result<()> {
         args.mnemonic
             .map_or_else(|| prompt_password(PROMPT).map(Zeroizing::new), Ok)?
     };
-    let output_pass = generate_pass(&mnemonic, &args.salt, args.counter, params)?;
+    let output_pass = generate_pass(&mnemonic, &args.salt, &counter, params)?;
+    {
+        // scuffed zeroizing of the counter
+        unsafe {
+            std::ptr::write_volatile(&mut *counter as *mut _, 0u32);
+        }
+        drop(counter);
+    }
 
     println!("{}", output_pass.as_str());
     Ok(())
@@ -86,7 +97,7 @@ impl Error {
 fn generate_pass(
     mnemonic: &str,
     salt: &str,
-    counter: u32,
+    counter: &u32,
     params: argon2::Params,
 ) -> anyhow::Result<Zeroizing<String>> {
     let mut nonce = 0u32;
@@ -103,7 +114,7 @@ fn generate_pass(
         let salt = {
             let mut out = format!("{counter:08x}{nonce:08x}");
             out.push_str(salt);
-            out
+            Zeroizing::new(out)
         };
         let mut output_key_material = Zeroizing::new(vec![0u8; hash_length]);
         Argon2::new(
