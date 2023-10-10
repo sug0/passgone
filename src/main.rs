@@ -42,7 +42,8 @@ struct Arguments {
     /// Data to salt the password with
     ///
     /// The value should be unique per generated
-    /// password
+    /// password. Typically, website host names
+    /// should be chosen as a salt
     #[arg(short, long)]
     salt: String,
     /// Monotonically increasing counter
