@@ -161,8 +161,6 @@ fn generate_pass(
                     } else {
                         _ = writeln!(&mut buf[..], "{ch:02x}");
                     }
-                    state.has_special_char = true;
-                    output.push('$');
                     for buf_ch in buf {
                         match () {
                             _ if buf_ch.is_ascii_digit() => {
