@@ -111,10 +111,15 @@ fn generate_pass(
             has_special_char: false,
         };
 
-        let salt = {
-            let mut out = format!("{counter:08x}{nonce:08x}");
-            out.push_str(salt);
+        let mnemonic = {
+            let mut out = format!("{counter:08x}");
+            out.push_str(mnemonic);
             Zeroizing::new(out)
+        };
+        let salt = {
+            let mut out = format!("{nonce:08x}");
+            out.push_str(salt);
+            out
         };
         let mut output_key_material = Zeroizing::new(vec![0u8; hash_length]);
         Argon2::new(
