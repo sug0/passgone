@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{self, Write};
 use std::num::NonZeroU32;
 
 use anyhow::anyhow;
@@ -9,11 +9,16 @@ use thiserror::Error;
 use zeroize::Zeroizing;
 
 const PROMPT: &str = "mnemonic: ";
+const PROMPT_CONFIRM: &str = "confirm: ";
 
 #[derive(Debug, Error)]
-#[error("{inner}")]
-struct Error {
-    inner: argon2::Error,
+enum Error {
+    #[error("kdf error: {0}")]
+    Argon2(argon2::Error),
+    #[error("mnemonic mismatch")]
+    MnemonicMismatch,
+    #[error("io error: {0}")]
+    Io(io::Error),
 }
 
 struct EncodeState {
@@ -27,6 +32,12 @@ struct EncodeState {
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Arguments {
+    /// Confirm mnemonic input
+    ///
+    /// This option only makes sense when reading
+    /// from stdin
+    #[arg(long, default_value_t = false)]
+    confirm: bool,
     /// Number of threads to use
     #[arg(long, default_value = "1")]
     threads: NonZeroU32,
@@ -69,12 +80,26 @@ fn main() -> anyhow::Result<()> {
         args.threads.get(),
         Some(args.hash_length),
     )
-    .map_err(Error::wrap)?;
+    .map_err(Error::Argon2)?;
 
-    let mnemonic = {
-        args.mnemonic
-            .map_or_else(|| prompt_password(PROMPT).map(Zeroizing::new), Ok)?
-    };
+    let mnemonic = args.mnemonic.map_or_else(
+        || {
+            let read = prompt_password(PROMPT)
+                .map(Zeroizing::new)
+                .map_err(Error::Io)?;
+            if !args.confirm {
+                return Ok(read);
+            }
+            let confirmed = prompt_password(PROMPT_CONFIRM)
+                .map(Zeroizing::new)
+                .map_err(Error::Io)?;
+            if read != confirmed {
+                return Err(Error::MnemonicMismatch);
+            }
+            Ok(confirmed)
+        },
+        Ok,
+    )?;
     let output_pass = generate_pass(&mnemonic, &args.salt, &counter, params)?;
     {
         // scuffed zeroizing of the counter
@@ -86,12 +111,6 @@ fn main() -> anyhow::Result<()> {
 
     println!("{}", output_pass.as_str());
     Ok(())
-}
-
-impl Error {
-    fn wrap(inner: argon2::Error) -> Self {
-        Self { inner }
-    }
 }
 
 fn generate_pass(
@@ -133,7 +152,7 @@ fn generate_pass(
             salt.as_bytes(),
             &mut output_key_material,
         )
-        .map_err(Error::wrap)?;
+        .map_err(Error::Argon2)?;
 
         let mut output = Zeroizing::new(String::with_capacity(output_key_material.len()));
 
