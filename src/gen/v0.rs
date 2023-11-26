@@ -6,7 +6,28 @@ use zeroize::Zeroizing;
 
 use crate::error::Error;
 
+#[inline]
+pub fn generate_pass_with_repeats(
+    mnemonic: &str,
+    salt: &str,
+    counter: &u32,
+    params: argon2::Params,
+) -> anyhow::Result<Zeroizing<String>> {
+    generate_pass::<true>(mnemonic, salt, counter, params)
+}
+
+#[inline]
+pub fn generate_pass_without_repeats(
+    mnemonic: &str,
+    salt: &str,
+    counter: &u32,
+    params: argon2::Params,
+) -> anyhow::Result<Zeroizing<String>> {
+    generate_pass::<false>(mnemonic, salt, counter, params)
+}
+
 struct EncodeState {
+    has_repeated_ch: bool,
     has_alpha_lower: bool,
     has_alpha_upper: bool,
     has_digit: bool,
@@ -15,12 +36,27 @@ struct EncodeState {
 
 impl EncodeState {
     #[inline]
-    const fn complete(&self) -> bool {
-        self.has_alpha_lower && self.has_alpha_upper && self.has_digit && self.has_special_char
+    const fn complete<const ALLOW_REPEATS: bool>(&self) -> bool {
+        (ALLOW_REPEATS || !self.has_repeated_ch)
+            && self.has_alpha_lower
+            && self.has_alpha_upper
+            && self.has_digit
+            && self.has_special_char
     }
 }
 
-pub fn generate_pass(
+fn handle_repeats<const ALLOW_REPEATS: bool>(
+    ch: u8,
+    last_ch: &mut Option<u8>,
+    state: &mut EncodeState,
+) {
+    if !ALLOW_REPEATS && Some(ch) == *last_ch {
+        state.has_repeated_ch = true;
+    }
+    *last_ch = Some(ch);
+}
+
+fn generate_pass<const ALLOW_REPEATS: bool>(
     mnemonic: &str,
     salt: &str,
     counter: &u32,
@@ -37,6 +73,7 @@ pub fn generate_pass(
 
     loop {
         let mut state = EncodeState {
+            has_repeated_ch: false,
             has_alpha_lower: false,
             has_alpha_upper: false,
             has_digit: false,
@@ -62,22 +99,27 @@ pub fn generate_pass(
         .map_err(Error::Argon2)?;
 
         let mut output = Zeroizing::new(String::with_capacity(output_key_material.len()));
+        let mut last_ch = None;
 
         for ch in output_key_material.iter().copied() {
             match () {
                 _ if ch.is_ascii_punctuation() => {
+                    handle_repeats::<ALLOW_REPEATS>(ch, &mut last_ch, &mut state);
                     output.push(ch as char);
                     state.has_special_char = true;
                 }
                 _ if ch.is_ascii_digit() => {
+                    handle_repeats::<ALLOW_REPEATS>(ch, &mut last_ch, &mut state);
                     output.push(ch as char);
                     state.has_digit = true;
                 }
                 _ if ch.is_ascii_lowercase() => {
+                    handle_repeats::<ALLOW_REPEATS>(ch, &mut last_ch, &mut state);
                     output.push(ch as char);
                     state.has_alpha_lower = true;
                 }
                 _ if ch.is_ascii_uppercase() => {
+                    handle_repeats::<ALLOW_REPEATS>(ch, &mut last_ch, &mut state);
                     output.push(ch as char);
                     state.has_alpha_upper = true;
                 }
@@ -101,13 +143,14 @@ pub fn generate_pass(
                             }
                             _ => unreachable!(),
                         }
+                        handle_repeats::<ALLOW_REPEATS>(buf_ch, &mut last_ch, &mut state);
                         output.push(buf_ch as char);
                     }
                 }
             }
         }
 
-        if state.complete() {
+        if state.complete::<ALLOW_REPEATS>() {
             break Ok(output);
         }
 

@@ -17,6 +17,12 @@ const PROMPT_CONFIRM: &str = "confirm: ";
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Arguments {
+    /// Disable repeated characters in sequence in the
+    /// generated password
+    ///
+    /// By default, this flag is disabled
+    #[arg(long, default_value_t = false)]
+    no_repetitions: bool,
     /// Confirm mnemonic input
     ///
     /// This option only makes sense when reading
@@ -90,7 +96,11 @@ fn main() -> anyhow::Result<()> {
         },
         Ok,
     )?;
-    let output_pass = v0::generate_pass(&mnemonic, &args.salt, &counter, params)?;
+    let output_pass = if args.no_repetitions {
+        v0::generate_pass_without_repeats(&mnemonic, &args.salt, &counter, params)?
+    } else {
+        v0::generate_pass_with_repeats(&mnemonic, &args.salt, &counter, params)?
+    };
 
     println!("{}", output_pass.as_str());
     Ok(())
