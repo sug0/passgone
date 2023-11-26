@@ -1,25 +1,18 @@
-use std::io::{self, Write};
+mod error;
+
+use std::io::Write;
 use std::num::NonZeroU32;
 
 use anyhow::anyhow;
 use argon2::Argon2;
 use clap::Parser;
 use rpassword::prompt_password;
-use thiserror::Error;
 use zeroize::Zeroizing;
+
+use self::error::Error;
 
 const PROMPT: &str = "mnemonic: ";
 const PROMPT_CONFIRM: &str = "confirm: ";
-
-#[derive(Debug, Error)]
-enum Error {
-    #[error("kdf error: {0}")]
-    Argon2(argon2::Error),
-    #[error("mnemonic mismatch")]
-    MnemonicMismatch,
-    #[error("io error: {0}")]
-    Io(io::Error),
-}
 
 struct EncodeState {
     has_alpha_lower: bool,
