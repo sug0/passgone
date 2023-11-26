@@ -4,26 +4,29 @@ use anyhow::anyhow;
 use argon2::Argon2;
 use zeroize::Zeroizing;
 
+use crate::entropy;
 use crate::error::Error;
 
 #[inline]
 pub fn generate_pass_with_repeats(
+    min_entropy: Option<f64>,
     mnemonic: &str,
     salt: &str,
     counter: &u32,
     params: argon2::Params,
 ) -> anyhow::Result<Zeroizing<String>> {
-    generate_pass::<true>(mnemonic, salt, counter, params)
+    generate_pass::<true>(min_entropy, mnemonic, salt, counter, params)
 }
 
 #[inline]
 pub fn generate_pass_without_repeats(
+    min_entropy: Option<f64>,
     mnemonic: &str,
     salt: &str,
     counter: &u32,
     params: argon2::Params,
 ) -> anyhow::Result<Zeroizing<String>> {
-    generate_pass::<false>(mnemonic, salt, counter, params)
+    generate_pass::<false>(min_entropy, mnemonic, salt, counter, params)
 }
 
 struct EncodeState {
@@ -57,6 +60,7 @@ fn handle_repeats<const ALLOW_REPEATS: bool>(
 }
 
 fn generate_pass<const ALLOW_REPEATS: bool>(
+    min_entropy: Option<f64>,
     mnemonic: &str,
     salt: &str,
     counter: &u32,
@@ -150,7 +154,11 @@ fn generate_pass<const ALLOW_REPEATS: bool>(
             }
         }
 
-        if state.complete::<ALLOW_REPEATS>() {
+        if state.complete::<ALLOW_REPEATS>()
+            && min_entropy
+                .map(|ent| entropy::shannon(&output) > ent)
+                .unwrap_or(true)
+        {
             break Ok(output);
         }
 

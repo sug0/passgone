@@ -1,3 +1,4 @@
+mod entropy;
 mod error;
 mod gen;
 
@@ -17,6 +18,12 @@ const PROMPT_CONFIRM: &str = "confirm: ";
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Arguments {
+    /// Minimum amount of entropy required by the pass
+    ///
+    /// By default, return passwords with any amount of
+    /// entropy
+    #[arg(long)]
+    min_entropy: Option<f64>,
     /// Disable repeated characters in sequence in the
     /// generated password
     ///
@@ -97,9 +104,15 @@ fn main() -> anyhow::Result<()> {
         Ok,
     )?;
     let output_pass = if args.no_repetitions {
-        v0::generate_pass_without_repeats(&mnemonic, &args.salt, &counter, params)?
+        v0::generate_pass_without_repeats(
+            args.min_entropy,
+            &mnemonic,
+            &args.salt,
+            &counter,
+            params,
+        )?
     } else {
-        v0::generate_pass_with_repeats(&mnemonic, &args.salt, &counter, params)?
+        v0::generate_pass_with_repeats(args.min_entropy, &mnemonic, &args.salt, &counter, params)?
     };
 
     println!("{}", output_pass.as_str());
