@@ -72,7 +72,12 @@ struct Arguments {
 
 fn main() -> anyhow::Result<()> {
     let args = Arguments::parse();
-    let mut counter = args.counter;
+    let counter = scopeguard::guard(args.counter, |mut counter| {
+        // scuffed zeroizing of the counter
+        unsafe {
+            std::ptr::write_volatile(&mut *counter as *mut _, 0u32);
+        }
+    });
 
     let params = argon2::Params::new(
         argon2::Params::DEFAULT_M_COST,
@@ -101,13 +106,6 @@ fn main() -> anyhow::Result<()> {
         Ok,
     )?;
     let output_pass = generate_pass(&mnemonic, &args.salt, &counter, params)?;
-    {
-        // scuffed zeroizing of the counter
-        unsafe {
-            std::ptr::write_volatile(&mut *counter as *mut _, 0u32);
-        }
-        drop(counter);
-    }
 
     println!("{}", output_pass.as_str());
     Ok(())
