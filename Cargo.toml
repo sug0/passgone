@@ -7,7 +7,6 @@ edition = "2021"
 anyhow = "1.0.75"
 argon2 = { version = "0.5.2", features = ["zeroize"] }
 clap = { version = "4.4.6", features = ["derive"] }
-false = "0.0.0"
 rpassword = "7.2.0"
 scopeguard = "1.2.0"
 thiserror = "1.0.49"
