@@ -3,6 +3,9 @@ name = "passgone"
 version = "0.3.1"
 edition = "2021"
 
+[features]
+test-vectors = []
+
 [dependencies]
 anyhow = "1.0.75"
 argon2 = { version = "0.5.2", features = ["zeroize"] }
