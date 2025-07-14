@@ -13,9 +13,10 @@ pub fn generate_pass_with_repeats(
     mnemonic: &str,
     salt: &str,
     counter: &u32,
+    truncate: Option<usize>,
     params: argon2::Params,
 ) -> anyhow::Result<Zeroizing<String>> {
-    generate_pass::<true>(min_entropy, mnemonic, salt, counter, params)
+    generate_pass::<true>(min_entropy, mnemonic, salt, counter, truncate, params)
 }
 
 #[inline]
@@ -24,9 +25,10 @@ pub fn generate_pass_without_repeats(
     mnemonic: &str,
     salt: &str,
     counter: &u32,
+    truncate: Option<usize>,
     params: argon2::Params,
 ) -> anyhow::Result<Zeroizing<String>> {
-    generate_pass::<false>(min_entropy, mnemonic, salt, counter, params)
+    generate_pass::<false>(min_entropy, mnemonic, salt, counter, truncate, params)
 }
 
 struct EncodeState {
@@ -64,6 +66,7 @@ fn generate_pass<const ALLOW_REPEATS: bool>(
     mnemonic: &str,
     salt: &str,
     counter: &u32,
+    truncate: Option<usize>,
     params: argon2::Params,
 ) -> anyhow::Result<Zeroizing<String>> {
     let mut nonce = 0u32;
@@ -159,6 +162,10 @@ fn generate_pass<const ALLOW_REPEATS: bool>(
                 .map(|ent| entropy::shannon(&output) > ent)
                 .unwrap_or(true)
         {
+            if let Some(new_len) = truncate {
+                output.truncate(new_len);
+            }
+
             break Ok(output);
         }
 
@@ -177,27 +184,69 @@ mod test_vectors {
     #[test]
     fn run() -> anyhow::Result<()> {
         assert_eq!(
-            &*generate_pass_with_repeats(None, "bong", "bing", &0u32, default_argon2_params()?)?,
+            &*generate_pass_with_repeats(
+                None,
+                "bong",
+                "bing",
+                &0u32,
+                None,
+                default_argon2_params()?
+            )?,
             r#"a-BB&E293:RFFF7brF30F91F9BE,90DCEyFg.88,1C9C02-<"#,
         );
         assert_eq!(
-            &*generate_pass_without_repeats(None, "bong", "bing", &0u32, default_argon2_params()?)?,
+            &*generate_pass_without_repeats(
+                None,
+                "bong",
+                "bing",
+                &0u32,
+                None,
+                default_argon2_params()?
+            )?,
             r#"ec14D9O8ACE9F\82C7cC5D6D01E98EB4B29?m3968F8BC1E0FBDF6"#,
         );
         assert_eq!(
-            &*generate_pass_with_repeats(None, "bong", "bing", &1u32, default_argon2_params()?)?,
+            &*generate_pass_with_repeats(
+                None,
+                "bong",
+                "bing",
+                &1u32,
+                None,
+                default_argon2_params()?
+            )?,
             r#"(83a2EF89XB8B3C4E9E7WBQ04LA2O[{DEC6*03FFM88UF4F380C"#,
         );
         assert_eq!(
-            &*generate_pass_without_repeats(None, "bong", "bing", &1u32, default_argon2_params()?)?,
+            &*generate_pass_without_repeats(
+                None,
+                "bong",
+                "bing",
+                &1u32,
+                None,
+                default_argon2_params()?
+            )?,
             r#"feDCLF1E0LE6.w+868BE7F82cFq0A96E586C4B7wBF13ACE7D3NF1"#,
         );
         assert_eq!(
-            &*generate_pass_with_repeats(None, "bong", "bing", &2u32, default_argon2_params()?)?,
+            &*generate_pass_with_repeats(
+                None,
+                "bong",
+                "bing",
+                &2u32,
+                None,
+                default_argon2_params()?
+            )?,
             r#"c0BC818F92D8E5\0DB2F9D5-EB84B7FF02NBC91999DW,ZB8A9BBF3EFF7"#,
         );
         assert_eq!(
-            &*generate_pass_without_repeats(None, "bong", "bing", &2u32, default_argon2_params()?)?,
+            &*generate_pass_without_repeats(
+                None,
+                "bong",
+                "bing",
+                &2u32,
+                None,
+                default_argon2_params()?
+            )?,
             r#"y|(C301vDAFCD1D5j;EFD9D67FA8#B2C8vE4A3RF7CD93`8ELY"#,
         );
         assert_eq!(
@@ -206,6 +255,7 @@ mod test_vectors {
                 "secret",
                 "example.com",
                 &0u32,
+                None,
                 default_argon2_params()?
             )?,
             r#"L1dRD2D6>-krNF0CEE3p/"13Q9+1DD7V?8C2A4A6k'07n"#,
@@ -216,6 +266,7 @@ mod test_vectors {
                 "secret",
                 "example.com",
                 &0u32,
+                None,
                 default_argon2_params()?
             )?,
             r#"91f8uvm=A4?97w@1B1A20Fg_[C3D689&A4qB8:!BC\hm>"#,
@@ -226,6 +277,7 @@ mod test_vectors {
                 "secret",
                 "example.com",
                 &1u32,
+                None,
                 default_argon2_params()?
             )?,
             r#".a3DBD2FFA289'E52|"7C6'z9F1E~D190C2Pp0296`|B69A="#,
@@ -236,6 +288,7 @@ mod test_vectors {
                 "secret",
                 "example.com",
                 &1u32,
+                None,
                 default_argon2_params()?
             )?,
             r#"f0tCBA8C8D4x|{Dv2091+*F0F0B6384FA915ADX:gt8A8NBD"#,

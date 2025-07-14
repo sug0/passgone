@@ -66,6 +66,12 @@ struct Arguments {
     /// Length in bytes of the kdf output
     #[arg(long, default_value_t = 32)]
     hash_length: usize,
+    /// Number of bytes of the generated password to keep
+    ///
+    /// Has no effect if the provided length is greater
+    /// than the generated password's length
+    #[arg(short, long)]
+    truncate_to: Option<usize>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -109,10 +115,18 @@ fn main() -> anyhow::Result<()> {
             &mnemonic,
             &args.salt,
             &counter,
+            args.truncate_to,
             params,
         )?
     } else {
-        v0::generate_pass_with_repeats(args.min_entropy, &mnemonic, &args.salt, &counter, params)?
+        v0::generate_pass_with_repeats(
+            args.min_entropy,
+            &mnemonic,
+            &args.salt,
+            &counter,
+            args.truncate_to,
+            params,
+        )?
     };
 
     println!("{}", output_pass.as_str());
